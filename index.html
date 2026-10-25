@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Stratego 3D</title>
+  <meta name="description" content="Play Stratego in 3D against a friend online. Pick your army, share a link, capture the flag.">
+  <meta name="theme-color" content="#0b111d">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='10' y='8' width='44' height='48' rx='8' fill='%23b3312a'/%3E%3Cpath d='M24 46V18m0 2c8-4 12 4 18 0v14c-6 4-10-4-18 0' stroke='%23fff3e2' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body class="in-lobby">
+  <canvas id="board" aria-label="Game board"></canvas>
+
+  <!-- ============ Lobby ============ -->
+  <section id="lobby" class="lobby">
+    <div class="lobby-card">
+      <header class="brand">
+        <h1>Stratego <span>3D</span></h1>
+        <p>Hide your flag. Find theirs. Play a friend online.</p>
+      </header>
+
+      <label class="field">
+        <span>Your name</span>
+        <input id="nameInput" type="text" maxlength="20" autocomplete="nickname" placeholder="e.g. Grandpa Joe">
+      </label>
+
+      <!-- Start a new game -->
+      <div id="createView">
+        <h2>Start a new game</h2>
+        <p class="hint">Pick your army. You'll get a link to send to the other player.</p>
+        <div class="side-picker">
+          <button class="side-btn red" data-side="red">
+            <span class="mini-piece red"><b>10</b></span>
+            <span class="side-name">Play Red</span>
+            <span class="side-note">Moves first</span>
+          </button>
+          <button class="side-btn blue" data-side="blue">
+            <span class="mini-piece blue"><b>10</b></span>
+            <span class="side-name">Play Blue</span>
+            <span class="side-note">Moves second</span>
+          </button>
+        </div>
+
+        <div class="divider"><span>or join a friend</span></div>
+
+        <form id="joinForm" class="join-row">
+          <input id="codeInput" type="text" maxlength="5" placeholder="Game code" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Game code">
+          <button class="btn" type="submit">Join</button>
+        </form>
+      </div>
+
+      <!-- Invited by link -->
+      <div id="inviteView" hidden>
+        <h2>You're invited!</h2>
+        <p class="hint">Game <b id="inviteCode" class="code"></b> is waiting for you. The other player already picked their army, so you'll get the other one.</p>
+        <button id="acceptInvite" class="btn primary big">Join the game</button>
+        <button id="declineInvite" class="link-btn">Start my own game instead</button>
+      </div>
+
+      <!-- Connecting as guest -->
+      <div id="connectView" hidden>
+        <div class="spinner" aria-hidden="true"></div>
+        <h2 id="connectTitle">Connecting…</h2>
+        <p class="hint" id="connectText">Reaching the other player's game.</p>
+        <button id="cancelConnect" class="link-btn">Cancel</button>
+      </div>
+
+      <p id="lobbyError" class="error" role="alert" hidden></p>
+      <footer class="lobby-foot">
+        <button class="link-btn" data-open="rulesModal">How to play</button>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ============ In-game HUD ============ -->
+  <div id="hud" class="hud" hidden>
+    <header class="topbar">
+      <div class="brand-mini">Stratego <span>3D</span></div>
+      <div id="turnBanner" class="turn-banner">Deploy your army</div>
+      <div class="top-actions">
+        <button class="icon-btn" id="cameraBtn" title="Reset view" aria-label="Reset view">
+          <svg viewBox="0 0 24 24"><path d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg>
+        </button>
+        <button class="icon-btn" id="soundBtn" title="Sound on/off" aria-label="Sound on/off">
+          <svg viewBox="0 0 24 24" class="on"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg>
+          <svg viewBox="0 0 24 24" class="off"><path d="M3 9v6h4l5 5V4L7 9H3zm13.6 3 2.7-2.7-1.4-1.4-2.7 2.7-2.7-2.7-1.4 1.4 2.7 2.7-2.7 2.7 1.4 1.4 2.7-2.7 2.7 2.7 1.4-1.4z"/></svg>
+        </button>
+        <button class="icon-btn" data-open="rulesModal" title="How to play" aria-label="How to play">
+          <svg viewBox="0 0 24 24"><path d="M11 18h2v-2h-2v2zm1-16a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16zm0-14a4 4 0 0 0-4 4h2a2 2 0 1 1 4 0c0 2-3 1.75-3 5h2c0-2.25 3-2.5 3-5a4 4 0 0 0-4-4z"/></svg>
+        </button>
+        <button class="icon-btn panel-toggle" id="panelBtn" title="Game info" aria-label="Game info">
+          <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+          <span class="badge" id="chatBadge" hidden></span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Invite card, shown to the host until someone joins -->
+    <div id="inviteCard" class="invite-card" hidden>
+      <div class="invite-head">
+        <div class="pulse-dot"></div>
+        <div>
+          <strong>Waiting for your opponent</strong>
+          <p>Send them this link. You can set up your army while you wait.</p>
+        </div>
+      </div>
+      <div class="invite-code">Game code <b id="hostCode" class="code"></b></div>
+      <div class="copy-row">
+        <input id="shareLink" type="text" readonly aria-label="Invite link">
+        <button class="btn primary" id="copyLink">Copy link</button>
+      </div>
+      <button class="btn ghost full" id="shareBtn" hidden>Share…</button>
+    </div>
+
+    <aside id="panel" class="panel">
+      <section class="players">
+        <div class="player" id="mePlayer"></div>
+        <div class="vs">vs</div>
+        <div class="player" id="oppPlayer"></div>
+      </section>
+
+      <section class="forces">
+        <h3>Enemy pieces left</h3>
+        <div class="chips" id="enemyChips"></div>
+        <h3>Your pieces left</h3>
+        <div class="chips" id="myChips"></div>
+      </section>
+
+      <section class="log-wrap">
+        <h3>Battle log</h3>
+        <ol id="log" class="log"></ol>
+      </section>
+
+      <section class="chat">
+        <h3>Chat</h3>
+        <div id="chatList" class="chat-list"></div>
+        <form id="chatForm" class="chat-form">
+          <input id="chatInput" type="text" maxlength="200" placeholder="Say something nice…" autocomplete="off" aria-label="Chat message">
+          <button class="btn" type="submit">Send</button>
+        </form>
+      </section>
+
+      <footer class="panel-foot">
+        <button class="btn ghost" id="inviteAgainBtn">Invite link</button>
+        <button class="btn ghost danger" id="resignBtn">Resign</button>
+        <button class="btn ghost" id="leaveBtn">Leave</button>
+      </footer>
+    </aside>
+
+    <!-- Deployment controls -->
+    <div id="setupBar" class="setup-bar" hidden>
+      <p id="setupText">Tap two of your pieces to swap them. Keep your flag safe!</p>
+      <div class="setup-actions">
+        <button class="btn ghost" id="shuffleBtn">Shuffle</button>
+        <button class="btn primary" id="readyBtn">I'm ready</button>
+      </div>
+    </div>
+
+    <div id="combat" class="combat" hidden></div>
+    <div id="toasts" class="toasts" aria-live="polite"></div>
+  </div>
+
+  <!-- ============ Game over ============ -->
+  <div id="overModal" class="modal" hidden>
+    <div class="modal-card over-card">
+      <div class="over-emblem" id="overEmblem"></div>
+      <h2 id="overTitle">Victory!</h2>
+      <p id="overText"></p>
+      <p id="rematchText" class="hint"></p>
+      <div class="modal-actions">
+        <button class="btn primary" id="rematchBtn">Play again</button>
+        <button class="btn ghost" id="viewBoardBtn">Look at the board</button>
+      </div>
+      <button class="link-btn" id="newGameBtn">Back to the lobby</button>
+    </div>
+  </div>
+
+  <!-- ============ Rules ============ -->
+  <div id="rulesModal" class="modal" hidden>
+    <div class="modal-card rules-card">
+      <button class="close-btn" data-close aria-label="Close">&times;</button>
+      <h2>How to play</h2>
+      <p><b>Goal:</b> capture the other player's <b>Flag</b>, or leave them with no piece that can move.</p>
+      <ol class="rules">
+        <li><b>Set up.</b> Each player hides 40 pieces in their first four rows. You see your own ranks; the other player only sees the backs.</li>
+        <li><b>Take turns.</b> Red goes first. Move one piece one square forwards, backwards or sideways — never diagonally, and never into the two lakes.</li>
+        <li><b>Attack</b> by moving onto an enemy piece. Both ranks are shown and the higher rank wins. Equal ranks both leave the board.</li>
+        <li><b>Bombs and the Flag</b> never move. Anything that attacks a Bomb is destroyed — except a <b>Miner (3)</b>, who defuses it.</li>
+        <li><b>Scouts (2)</b> can move any number of empty squares in a straight line, and attack at the end of it.</li>
+        <li><b>The Spy (S)</b> defeats the Marshal (10), but only when the Spy attacks first. Anything else beats the Spy.</li>
+        <li>No piece may shuttle back and forth between the same two squares on more than three turns in a row.</li>
+      </ol>
+      <h3>The pieces</h3>
+      <div class="rank-table" id="rankTable"></div>
+      <h3>Controls</h3>
+      <p>Click or tap a piece to see where it can go, then tap a highlighted square. Drag to turn the board, scroll or pinch to zoom.</p>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

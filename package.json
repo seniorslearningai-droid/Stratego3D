@@ -1,0 +1,12 @@
+{
+  "name": "stratego3d",
+  "version": "1.0.0",
+  "description": "Two-player online Stratego in 3D. Runs entirely in the browser.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node dev-server.mjs",
+    "test": "node --test"
+  },
+  "license": "MIT"
+}
