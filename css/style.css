@@ -110,6 +110,9 @@ button, input { font: inherit; color: inherit; }
 }
 .icon-btn:hover { border-color: var(--line-strong); background: var(--glass-strong); }
 .icon-btn svg { width: 20px; height: 20px; fill: currentColor; }
+#fullscreenBtn .exit { display: none; }
+#fullscreenBtn.active .enter { display: none; }
+#fullscreenBtn.active .exit { display: block; }
 #soundBtn .off { display: none; }
 #soundBtn.muted .on { display: none; }
 #soundBtn.muted .off { display: block; }
@@ -529,7 +532,8 @@ input::placeholder { color: var(--faint); }
 
 /* Toasts */
 .toasts {
-  position: absolute;
+  position: fixed;
+  z-index: 30;
   left: 12px;
   bottom: 16px;
   display: flex;

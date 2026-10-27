@@ -965,6 +965,36 @@ async function copyLink() {
   toast('Link copied. Paste it into a text or email to your opponent.', 'good');
 }
 
+// Full screen hides the browser's own bars. iPhones don't allow it for web
+// pages, so the button only shows where it works.
+function bindFullscreen() {
+  const buttons = document.querySelectorAll('[data-fullscreen]');
+  const root = document.documentElement;
+  const enter = root.requestFullscreen || root.webkitRequestFullscreen;
+  const exit = document.exitFullscreen || document.webkitExitFullscreen;
+  const current = () => document.fullscreenElement || document.webkitFullscreenElement;
+  if (!enter) return;
+  const toggle = () => {
+    const result = current() ? exit.call(document) : enter.call(root, { navigationUI: 'hide' });
+    result?.catch?.(() => toast("Full screen isn't available in this browser.", 'warn'));
+  };
+  const sync = () => {
+    const on = !!current();
+    for (const btn of buttons) {
+      btn.classList.toggle('active', on);
+      btn.title = on ? 'Exit full screen' : 'Full screen';
+      btn.setAttribute('aria-label', btn.title);
+      if (!btn.querySelector('svg')) btn.textContent = btn.title;
+    }
+  };
+  for (const btn of buttons) {
+    btn.hidden = false;
+    btn.addEventListener('click', toggle);
+  }
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+}
+
 function bindUi() {
   for (const btn of document.querySelectorAll('.side-btn')) {
     btn.addEventListener('click', () => createGame(btn.dataset.side));
@@ -1025,6 +1055,7 @@ function bindUi() {
   });
   $('#newGameBtn').addEventListener('click', leaveGame);
 
+  bindFullscreen();
   $('#cameraBtn').addEventListener('click', () => scene.setViewer(app.mySide || 'red', true));
   const soundBtn = $('#soundBtn');
   soundBtn.classList.toggle('muted', isMuted());

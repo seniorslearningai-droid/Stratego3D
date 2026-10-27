@@ -6,6 +6,10 @@
   <title>Stratego 3D</title>
   <meta name="description" content="Play Stratego in 3D against a friend online. Pick your army, share a link, capture the flag.">
   <meta name="theme-color" content="#0b111d">
+  <!-- Opened from a phone's home screen, run without the browser bars. -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Stratego 3D">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='10' y='8' width='44' height='48' rx='8' fill='%23b3312a'/%3E%3Cpath d='M24 46V18m0 2c8-4 12 4 18 0v14c-6 4-10-4-18 0' stroke='%23fff3e2' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -81,6 +85,7 @@
       <p id="lobbyError" class="error" role="alert" hidden></p>
       <footer class="lobby-foot">
         <button class="link-btn" data-open="rulesModal">How to play</button>
+        <button class="link-btn" data-fullscreen hidden>Full screen</button>
       </footer>
     </div>
   </section>
@@ -91,6 +96,10 @@
       <div class="brand-mini">Stratego <span>3D</span></div>
       <div id="turnBanner" class="turn-banner">Deploy your army</div>
       <div class="top-actions">
+        <button class="icon-btn" id="fullscreenBtn" data-fullscreen title="Full screen" aria-label="Full screen" hidden>
+          <svg viewBox="0 0 24 24" class="enter"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"/></svg>
+          <svg viewBox="0 0 24 24" class="exit"><path d="M8 4h2v6H4V8h4V4zm6 0h2v4h4v2h-6V4zM4 14h6v6H8v-4H4v-2zm10 0h6v2h-4v4h-2v-6z"/></svg>
+        </button>
         <button class="icon-btn" id="cameraBtn" title="Reset view" aria-label="Reset view">
           <svg viewBox="0 0 24 24"><path d="M12 5V2L7 6l5 4V7a6 6 0 1 1-6 6H4a8 8 0 1 0 8-8z"/></svg>
         </button>
@@ -170,8 +179,9 @@
     </div>
 
     <div id="combat" class="combat" hidden></div>
-    <div id="toasts" class="toasts" aria-live="polite"></div>
   </div>
+
+  <div id="toasts" class="toasts" aria-live="polite"></div>
 
   <!-- ============ Game over ============ -->
   <div id="overModal" class="modal" hidden>
