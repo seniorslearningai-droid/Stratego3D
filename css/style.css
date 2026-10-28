@@ -227,6 +227,53 @@ input::placeholder { color: var(--faint); }
 .mode-tab.active { background: rgba(255, 255, 255, 0.12); color: var(--text); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
 .mode-tabs + h2 { margin-top: 16px !important; }
 
+.level-picker {
+  margin: 0 0 16px;
+  padding: 14px 16px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--line);
+}
+.level-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.level-head label { font-size: 13px; font-weight: 600; color: var(--muted); }
+.level-value { font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+.level-ends { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--faint); }
+#levelInput {
+  --fill: 49%;
+  width: 100%;
+  height: 28px;
+  margin: 0;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+#levelInput::-webkit-slider-runnable-track {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--gold) var(--fill), rgba(255, 255, 255, 0.14) var(--fill));
+}
+#levelInput::-moz-range-track { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); }
+#levelInput::-moz-range-progress { height: 8px; border-radius: 4px; background: var(--gold); }
+#levelInput::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -8px;
+  border-radius: 50%;
+  background: #fff6e0;
+  border: 3px solid var(--gold-deep);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+#levelInput::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff6e0;
+  border: 3px solid var(--gold-deep);
+}
+#levelInput:focus-visible { outline: 2px solid var(--gold); outline-offset: 4px; border-radius: 4px; }
+
 .side-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .side-btn {
   display: flex;

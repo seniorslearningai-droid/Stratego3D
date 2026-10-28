@@ -14,14 +14,18 @@ const FORWARD = { red: -1, blue: 1 };
 export const robotArmy = (side, rng = Math.random) => randomArmy(side, rng);
 
 // What the robot knows about the enemy: ranks it has seen (by piece id) and
-// how many of each rank are still unaccounted for.
-function knowledge(view, side) {
+// how many of each rank are still unaccounted for. `remembers(id)` says
+// whether it kept a piece in mind; the last couple of moves it never forgets.
+function knowledge(view, side, remembers = () => true) {
   const enemy = other(side);
   const known = new Map();
   for (const e of view.log) {
+    const fresh = e.n >= view.moveCount - 2;
     if (e.kind === 'attack') {
-      for (const f of [e.attacker, e.defender]) if (f.side === enemy) known.set(f.id, f.rank);
-    } else if (e.kind === 'move' && e.side === enemy && e.rank) {
+      for (const f of [e.attacker, e.defender]) {
+        if (f.side === enemy && (fresh || remembers(f.id))) known.set(f.id, f.rank);
+      }
+    } else if (e.kind === 'move' && e.side === enemy && e.rank && (fresh || remembers(e.id))) {
       known.set(e.id, e.rank);
     }
   }
@@ -97,11 +101,11 @@ function danger(view, side, k, rank, sq, ignore = -1) {
   return worst * VALUE[rank];
 }
 
-function scoreMove(view, side, k, from, to, rng) {
+function scoreMove(view, side, k, from, to, rng, noise) {
   const piece = view.board[from];
   const target = view.board[to];
   const rank = piece.rank;
-  let score = rng() * 0.25;
+  let score = rng() * noise;
   // The longer the game runs, the bolder the robot gets, so it doesn't stall.
   // ...but only while it isn't running short of pieces that can move.
   const boldness = Math.min(1.2, view.moveCount / 250) * Math.min(1, k.myMovable / k.enemyMovable);
@@ -164,18 +168,34 @@ function nearestEnemy(view, side, sq) {
   return best;
 }
 
+// A number in [0, 1) that stays the same for a given game and piece.
+function stableRandom(seed, id) {
+  let h = (seed ^ Math.imul(id + 1, 2654435761)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 2246822507) >>> 0;
+  h = Math.imul(h ^ (h >>> 13), 3266489909) >>> 0;
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 // Picks the robot's move from its own view of the game, or null if it has none.
-export function chooseMove(view, side, rng = Math.random) {
-  const k = knowledge(view, side);
-  let best = null;
+// level runs from 1 (easiest) to 100 (hardest). Lower levels forget pieces
+// they've seen, judge moves more loosely and now and then just play anything.
+export function chooseMove(view, side, rng = Math.random, { level = 100, seed = 0 } = {}) {
+  const skill = (Math.min(100, Math.max(1, level)) - 1) / 99;
+  const memory = 0.2 + 0.8 * skill;
+  const k = knowledge(view, side, (id) => stableRandom(seed, id) < memory);
+  const moves = [];
   view.board.forEach((p, from) => {
-    if (!p || p.side !== side) return;
-    for (const to of legalTargets(view, from)) {
-      const score = scoreMove(view, side, k, from, to, rng);
-      if (!best || score > best.score) best = { from, to, score };
-    }
+    if (p && p.side === side) for (const to of legalTargets(view, from)) moves.push({ from, to });
   });
-  return best && { from: best.from, to: best.to };
+  if (!moves.length) return null;
+  if (rng() < (1 - skill) ** 2 * 0.5) return moves[Math.floor(rng() * moves.length)];
+  const noise = 0.05 + (1 - skill) ** 1.5 * 4;
+  let best = null;
+  for (const m of moves) {
+    const score = scoreMove(view, side, k, m.from, m.to, rng, noise);
+    if (!best || score > best.score) best = { ...m, score };
+  }
+  return { from: best.from, to: best.to };
 }
 
 // A short remark after a battle now and then, to keep things friendly.

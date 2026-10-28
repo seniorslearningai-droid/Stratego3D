@@ -42,6 +42,7 @@ const tabRole = {
 const KEYS = {
   name: 'stratego3d:name',
   mode: 'stratego3d:mode',
+  level: 'stratego3d:robotLevel',
   host: (code) => `stratego3d:host:${code}`,
   guest: (code) => `stratego3d:guest:${code}`,
   draft: (code, side) => `stratego3d:draft:${code}:${side}`,
@@ -99,6 +100,7 @@ class Referee {
       rematch: { ...this.r.rematch },
       guestOnline: !!this.guestConn || !!this.robot,
       robot: !!this.robot,
+      robotLevel: this.robot?.level,
     };
   }
 
@@ -513,7 +515,7 @@ function playerCard(side, name, statusText, dot) {
   const mine = side === app.mySide;
   return {
     cls: `player ${side}${active ? ' active' : ''}`,
-    html: `<div class="who">${mine ? 'You' : 'Opponent'} · ${SIDE_NAME[side]}</div>
+    html: `<div class="who">${mine ? 'You' : 'Opponent'} · ${SIDE_NAME[side]}${!mine && app.meta.robot ? ` · Level ${app.meta.robotLevel}` : ''}</div>
       <div class="pname">${escapeHtml(name)}</div>
       <div class="pstatus"><span class="dot ${dot}"></span>${statusText}</div>`,
   };
@@ -876,6 +878,9 @@ class RobotPlayer {
     this.side = side;
     this.ref = referee;
     this.timer = null;
+    this.level = referee.r.robotLevel || 50;
+    // Which pieces this robot forgets stays the same for the whole game.
+    this.seed = [...referee.r.code].reduce((h, c) => Math.imul(h, 31) + c.charCodeAt(0), 7);
   }
 
   react(event, duration) {
@@ -898,7 +903,7 @@ class RobotPlayer {
     const me = this.side;
     if (s.phase === 'setup' && !s.ready[me]) this.ref.act(me, { t: 'deploy', ranks: robotArmy(me) });
     else if (s.phase === 'play' && s.turn === me) {
-      const m = chooseMove(viewFor(s, me), me);
+      const m = chooseMove(viewFor(s, me), me, Math.random, { level: this.level, seed: this.seed });
       if (m) this.ref.act(me, { t: 'move', from: m.from, to: m.to });
     } else if (s.phase === 'over') this.ref.act(me, { t: 'rematch' });
   }
@@ -909,7 +914,7 @@ function createRobotGame(side) {
   if (!name) return;
   const code = makeCode();
   const record = {
-    code, hostSide: side, hostName: name, guestName: 'Robot', guestToken: null, robot: true,
+    code, hostSide: side, hostName: name, guestName: 'Robot', guestToken: null, robot: true, robotLevel: robotLevel(),
     state: newGame(), chat: [], rematch: {},
   };
   store.set(KEYS.host(code), record);
@@ -1086,11 +1091,28 @@ function setLobbyMode(mode) {
     ? 'Pick your army and the robot takes the other one. No internet friend needed.'
     : "Pick your army. You'll get a link to send to the other player.";
   $('#joinSection').hidden = robot;
+  $('#levelPicker').hidden = !robot;
+}
+
+const LEVEL_WORDS = [[20, 'Beginner'], [40, 'Easy'], [60, 'Medium'], [80, 'Hard'], [100, 'Expert']];
+const robotLevel = () => Math.min(100, Math.max(1, Math.round(Number($('#levelInput').value) || 50)));
+
+function showLevel() {
+  const level = robotLevel();
+  const word = LEVEL_WORDS.find(([max]) => level <= max)[1];
+  $('#levelValue').textContent = `${level} · ${word}`;
+  $('#levelInput').style.setProperty('--fill', `${level - 1}%`);
 }
 
 function bindUi() {
   for (const tab of document.querySelectorAll('.mode-tab')) tab.addEventListener('click', () => setLobbyMode(tab.dataset.mode));
   setLobbyMode(store.get(KEYS.mode, 'friend') === 'robot' ? 'robot' : 'friend');
+  $('#levelInput').value = store.get(KEYS.level, 50);
+  showLevel();
+  $('#levelInput').addEventListener('input', () => {
+    showLevel();
+    store.set(KEYS.level, robotLevel());
+  });
   for (const btn of document.querySelectorAll('.side-btn')) {
     btn.addEventListener('click', () => (lobbyMode === 'robot' ? createRobotGame : createGame)(btn.dataset.side));
   }

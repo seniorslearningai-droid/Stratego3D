@@ -65,3 +65,16 @@ test('two robots can play a whole game using only legal moves', () => {
     }
   }
 });
+
+test('every difficulty level plays only legal moves', () => {
+  for (const level of [1, 50, 100]) {
+    const rng = seeded(level);
+    const s = newGame();
+    deploy(s, 'red', robotArmy('red', rng));
+    deploy(s, 'blue', robotArmy('blue', rng));
+    for (let i = 0; i < 400 && s.phase === 'play'; i++) {
+      const m = chooseMove(viewFor(s, s.turn), s.turn, rng, { level, seed: 3 });
+      assert.ok(move(s, s.turn, m.from, m.to).ok);
+    }
+  }
+});

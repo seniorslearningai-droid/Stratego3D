@@ -8,7 +8,7 @@ Classic Stratego on a 3D board, for two players on two different computers, tabl
 4. While you wait, arrange your 40 pieces: tap two pieces to swap them, or press **Shuffle**.
 5. When your friend opens the link they get the other army. Once you both press **I'm ready**, the battle starts.
 
-**No one to play with?** Choose **Play the robot** in the lobby, pick your army, and the computer takes the other side. The robot plays fair: it only sees what you would see and has to remember pieces from earlier battles.
+**No one to play with?** Choose **Play the robot** in the lobby, set the difficulty slider from 1 (easiest) to 100 (hardest), pick your army, and the computer takes the other side. Easier robots forget pieces they've seen and make more careless moves. The robot plays fair: it only sees what you would see and has to remember pieces from earlier battles.
 
 Drag to turn the board, scroll or pinch to zoom. There's a chat box, a battle log, and a count of the enemy pieces still standing. After a game, press **Play again** for a rematch.
 

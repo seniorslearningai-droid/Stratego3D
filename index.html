@@ -49,6 +49,14 @@
         </div>
         <h2 id="createTitle">Start a new game</h2>
         <p class="hint" id="createHint">Pick your army. You'll get a link to send to the other player.</p>
+        <div id="levelPicker" class="level-picker" hidden>
+          <div class="level-head">
+            <label for="levelInput">Robot difficulty</label>
+            <span id="levelValue" class="level-value">50 · Medium</span>
+          </div>
+          <input id="levelInput" type="range" min="1" max="100" step="1" value="50">
+          <div class="level-ends"><span>1 · Easiest</span><span>100 · Hardest</span></div>
+        </div>
         <div class="side-picker">
           <button class="side-btn red" data-side="red">
             <span class="mini-piece red"><b>10</b></span>
