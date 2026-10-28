@@ -606,6 +606,105 @@ export class BoardScene {
         this.scene.add(lily);
       }
     }
+    this.buildFish();
+  }
+
+  // A few koi per lake that circle the pond and now and then leap out.
+  buildFish() {
+    const colors = [0xff7a2a, 0xf4f1ea, 0xffb02e, 0xe8452c, 0xfff6e8, 0xff9440];
+    const fin = new THREE.MeshStandardMaterial({ color: 0xffd9b0, roughness: 0.5 });
+    const bodyGeo = new THREE.SphereGeometry(0.05, 12, 8);
+    const tailGeo = new THREE.ConeGeometry(0.04, 0.08, 4);
+    const rnd = seeded(23);
+    this.fish = [];
+    let n = 0;
+    for (const cx of [-2, 2]) {
+      for (let i = 0; i < 3; i++) {
+        const root = new THREE.Group();
+        const pitch = new THREE.Group();
+        root.add(pitch);
+        const body = new THREE.Mesh(bodyGeo, new THREE.MeshStandardMaterial({ color: colors[n++ % colors.length], roughness: 0.35 }));
+        body.scale.set(1, 0.6, 2.2);
+        body.castShadow = true;
+        const tail = new THREE.Group();
+        tail.position.z = -0.1;
+        const tailFin = new THREE.Mesh(tailGeo, fin);
+        tailFin.rotation.x = Math.PI / 2;
+        tailFin.scale.set(1, 1, 0.35);
+        tailFin.position.z = -0.035;
+        tail.add(tailFin);
+        pitch.add(body, tail);
+        this.scene.add(root);
+        this.fish.push({
+          root, pitch, tail,
+          cx,
+          rx: 0.32 + rnd() * 0.3,
+          rz: 0.28 + rnd() * 0.3,
+          angle: rnd() * Math.PI * 2,
+          speed: (0.35 + rnd() * 0.35) * (rnd() < 0.5 ? -1 : 1),
+          wag: rnd() * 10,
+          nextJump: 3 + rnd() * 10,
+          jump: -1, // seconds into a jump, or -1 while swimming
+        });
+      }
+    }
+  }
+
+  updateFish(dt, time) {
+    const JUMP = 0.95;
+    for (const f of this.fish) {
+      const jumping = f.jump >= 0;
+      f.angle += f.speed * dt * (jumping ? 2.2 : 1);
+      f.wag += dt * (jumping ? 22 : 9);
+      const x = f.cx + Math.cos(f.angle) * f.rx;
+      const z = Math.sin(f.angle) * f.rz;
+      // Face along the direction of travel.
+      const dx = -Math.sin(f.angle) * f.rx * Math.sign(f.speed);
+      const dz = Math.cos(f.angle) * f.rz * Math.sign(f.speed);
+      f.root.position.set(x, 0.02 + Math.sin(time * 2 + f.wag) * 0.004, z);
+      f.root.rotation.y = Math.atan2(dx, dz);
+      f.tail.rotation.y = Math.sin(f.wag) * 0.5;
+
+      if (!jumping && time > f.nextJump) {
+        f.jump = 0;
+        this.splash(x, z);
+      }
+      if (f.jump >= 0) {
+        f.jump += dt;
+        const s = Math.min(1, f.jump / JUMP);
+        f.root.position.y += Math.sin(Math.PI * s) * 0.38;
+        f.pitch.rotation.x = -Math.cos(Math.PI * s) * 0.9; // nose up, then down
+        if (s >= 1) {
+          f.jump = -1;
+          f.pitch.rotation.x = 0;
+          f.nextJump = time + 4 + Math.random() * 12;
+          this.splash(x, z);
+        }
+      }
+    }
+  }
+
+  splash(x, z) {
+    for (const [delay, size] of [[0, 0.7], [140, 1.05]]) {
+      const ring = new THREE.Mesh(GEO.marker, new THREE.MeshBasicMaterial({
+        map: this.markerTex.ring, color: 0xdff4ff, transparent: true, depthWrite: false, opacity: 0,
+      }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(x, 0.018, z);
+      this.scene.add(ring);
+      this.tween({
+        delay,
+        duration: 700,
+        update: (t) => {
+          ring.scale.setScalar(0.12 + t * 0.35 * size);
+          ring.material.opacity = 0.75 * (1 - t);
+        },
+        done: () => {
+          this.scene.remove(ring);
+          ring.material.dispose();
+        },
+      });
+    }
   }
 
   buildMarkers() {
@@ -976,6 +1075,7 @@ export class BoardScene {
     });
     this.ripples.offset.x += dt * 0.02;
     this.ripples.offset.y += dt * 0.012;
+    this.updateFish(Math.min(dt, 0.1), this.clock.elapsedTime);
     if (!this.cameraTween || !this.tweens.includes(this.cameraTween)) {
       this.cameraTween = null;
       this.controls.update();
