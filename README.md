@@ -8,6 +8,8 @@ Classic Stratego on a 3D board, for two players on two different computers, tabl
 4. While you wait, arrange your 40 pieces: tap two pieces to swap them, or press **Shuffle**.
 5. When your friend opens the link they get the other army. Once you both press **I'm ready**, the battle starts.
 
+**No one to play with?** Choose **Play the robot** in the lobby, pick your army, and the computer takes the other side. The robot plays fair: it only sees what you would see and has to remember pieces from earlier battles.
+
 Drag to turn the board, scroll or pinch to zoom. There's a chat box, a battle log, and a count of the enemy pieces still standing. After a game, press **Play again** for a rematch.
 
 ## Putting it online (GitHub Pages)
@@ -65,6 +67,7 @@ runs the rules tests.
 | `js/net.js` | The connection between the two browsers |
 | `js/scene.js` | The 3D board and pieces (three.js) |
 | `js/main.js` | Ties it all together: lobby, turns, chat, saving |
+| `js/robot.js` | The computer opponent |
 | `js/sound.js` | Small sound effects |
-| `tests/game.test.mjs` | Rules tests |
+| `tests/game.test.mjs`, `tests/robot.test.mjs` | Rules and robot tests |
 | `dev-server.mjs` | Tiny local web server for `npm start` |

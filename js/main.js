@@ -6,6 +6,7 @@ import {
   randomArmy, remaining, resign, squareName, viewFor,
 } from './game.js';
 import { GuestLink, HostLink, isCode, makeCode, makeToken, normalizeCode } from './net.js';
+import { chooseMove, robotArmy, robotRemark } from './robot.js';
 import { BoardScene } from './scene.js';
 import { isMuted, setMuted, sfx } from './sound.js';
 
@@ -40,6 +41,7 @@ const tabRole = {
 
 const KEYS = {
   name: 'stratego3d:name',
+  mode: 'stratego3d:mode',
   host: (code) => `stratego3d:host:${code}`,
   guest: (code) => `stratego3d:guest:${code}`,
   draft: (code, side) => `stratego3d:draft:${code}:${side}`,
@@ -95,7 +97,8 @@ class Referee {
       hostName: this.r.hostName,
       guestName: this.r.guestName,
       rematch: { ...this.r.rematch },
-      guestOnline: !!this.guestConn,
+      guestOnline: !!this.guestConn || !!this.robot,
+      robot: !!this.robot,
     };
   }
 
@@ -127,7 +130,8 @@ class Referee {
 
   broadcast(event = null) {
     const meta = this.meta();
-    receive(viewFor(this.r.state, this.hostSide), event, meta);
+    const duration = receive(viewFor(this.r.state, this.hostSide), event, meta);
+    this.robot?.react(event, duration);
     if (this.guestConn) {
       app.link.send(this.guestConn, { t: 'state', view: viewFor(this.r.state, this.guestSide), event, meta });
     }
@@ -271,6 +275,7 @@ function receive(view, event, meta) {
   const duration = scene.sync(displayCells(), event);
   react(prev, view, event, duration);
   render();
+  return duration;
 }
 
 function react(prev, view, event, duration) {
@@ -470,7 +475,7 @@ function render() {
   renderMarks();
   renderOverModal();
   $('#resignBtn').disabled = app.view.phase !== 'play';
-  $('#inviteAgainBtn').hidden = app.role !== 'host';
+  $('#inviteAgainBtn').hidden = app.role !== 'host' || app.robotGame;
   updateInsets();
 }
 
@@ -862,6 +867,76 @@ function createGame(side) {
   startHost(record);
 }
 
+// ---------------------------------------------------------------- the robot
+
+// Plays the guest's side of a game on this computer. It sees only its own
+// view of the board, just like a person would.
+class RobotPlayer {
+  constructor(side, referee) {
+    this.side = side;
+    this.ref = referee;
+    this.timer = null;
+  }
+
+  react(event, duration) {
+    const s = this.ref.r.state;
+    const me = this.side;
+    const remark = event && robotRemark(event, me);
+    if (remark) setTimeout(() => this.ref.addChat(me, remark), duration + 900);
+
+    clearTimeout(this.timer);
+    let delay;
+    if (s.phase === 'setup' && !s.ready[me]) delay = 1200;
+    else if (s.phase === 'play' && s.turn === me) delay = duration + 700 + Math.random() * 900;
+    else if (s.phase === 'over' && this.ref.r.rematch[other(me)] && !this.ref.r.rematch[me]) delay = 900;
+    else return;
+    this.timer = setTimeout(() => this.act(), delay);
+  }
+
+  act() {
+    const s = this.ref.r.state;
+    const me = this.side;
+    if (s.phase === 'setup' && !s.ready[me]) this.ref.act(me, { t: 'deploy', ranks: robotArmy(me) });
+    else if (s.phase === 'play' && s.turn === me) {
+      const m = chooseMove(viewFor(s, me), me);
+      if (m) this.ref.act(me, { t: 'move', from: m.from, to: m.to });
+    } else if (s.phase === 'over') this.ref.act(me, { t: 'rematch' });
+  }
+}
+
+function createRobotGame(side) {
+  const name = requireName();
+  if (!name) return;
+  const code = makeCode();
+  const record = {
+    code, hostSide: side, hostName: name, guestName: 'Robot', guestToken: null, robot: true,
+    state: newGame(), chat: [], rematch: {},
+  };
+  store.set(KEYS.host(code), record);
+  history.replaceState(null, '', `?game=${code}`);
+  startRobotGame(record);
+}
+
+// A robot game needs no connection: everything happens on this computer.
+function startRobotGame(record) {
+  app.role = 'host';
+  app.robotGame = true;
+  app.code = record.code;
+  app.mySide = record.hostSide;
+  app.myName = record.hostName;
+  app.chat = [...(record.chat || [])];
+  record.rematch ||= {};
+  app.referee = new Referee(record);
+  app.referee.robot = new RobotPlayer(other(record.hostSide), app.referee);
+  app.net = 'online';
+  tabRole.set(record.code, 'host');
+  enterGame();
+  app.referee.broadcast(null);
+  if (!record.chat.length) {
+    app.referee.addChat(other(record.hostSide), `Hello ${record.hostName}! I'm the robot. Good luck — you'll need it. Beep boop.`);
+  }
+}
+
 function joinGame(code, name) {
   if (typeof Peer === 'undefined') return showLobbyError("Online play couldn't load. Check your internet connection and reload the page.");
   history.replaceState(null, '', `?game=${code}`);
@@ -995,9 +1070,29 @@ function bindFullscreen() {
   document.addEventListener('webkitfullscreenchange', sync);
 }
 
+// The lobby's "Play a friend" / "Play the robot" switch.
+let lobbyMode = 'friend';
+function setLobbyMode(mode) {
+  lobbyMode = mode;
+  store.set(KEYS.mode, mode);
+  for (const tab of document.querySelectorAll('.mode-tab')) {
+    const on = tab.dataset.mode === mode;
+    tab.classList.toggle('active', on);
+    tab.setAttribute('aria-selected', on);
+  }
+  const robot = mode === 'robot';
+  $('#createTitle').textContent = robot ? 'Practice against the robot' : 'Start a new game';
+  $('#createHint').textContent = robot
+    ? 'Pick your army and the robot takes the other one. No internet friend needed.'
+    : "Pick your army. You'll get a link to send to the other player.";
+  $('#joinSection').hidden = robot;
+}
+
 function bindUi() {
+  for (const tab of document.querySelectorAll('.mode-tab')) tab.addEventListener('click', () => setLobbyMode(tab.dataset.mode));
+  setLobbyMode(store.get(KEYS.mode, 'friend') === 'robot' ? 'robot' : 'friend');
   for (const btn of document.querySelectorAll('.side-btn')) {
-    btn.addEventListener('click', () => createGame(btn.dataset.side));
+    btn.addEventListener('click', () => (lobbyMode === 'robot' ? createRobotGame : createGame)(btn.dataset.side));
   }
   $('#joinForm').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1120,12 +1215,13 @@ async function boot() {
 
   const code = normalizeCode(new URLSearchParams(location.search).get('game'));
   if (!isCode(code)) return showView('create');
+  const hostRecord = store.get(KEYS.host(code));
+  if (hostRecord?.robot) return startRobotGame(hostRecord);
   if (typeof Peer === 'undefined') {
     showView('create');
     return showLobbyError("Online play couldn't load. Check your internet connection and reload the page.");
   }
   const role = tabRole.get(code);
-  const hostRecord = store.get(KEYS.host(code));
   if (hostRecord && role !== 'guest') return startHost(hostRecord, { fallbackToGuest: role !== 'host' });
   if (role === 'guest' || store.get(KEYS.guest(code))) return startGuest(code);
   showInvite(code);

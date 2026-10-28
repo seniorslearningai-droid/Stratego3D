@@ -43,8 +43,12 @@
 
       <!-- Start a new game -->
       <div id="createView">
-        <h2>Start a new game</h2>
-        <p class="hint">Pick your army. You'll get a link to send to the other player.</p>
+        <div class="mode-tabs" role="tablist" aria-label="Who to play">
+          <button class="mode-tab" role="tab" data-mode="friend">Play a friend</button>
+          <button class="mode-tab" role="tab" data-mode="robot">Play the robot</button>
+        </div>
+        <h2 id="createTitle">Start a new game</h2>
+        <p class="hint" id="createHint">Pick your army. You'll get a link to send to the other player.</p>
         <div class="side-picker">
           <button class="side-btn red" data-side="red">
             <span class="mini-piece red"><b>10</b></span>
@@ -58,12 +62,14 @@
           </button>
         </div>
 
-        <div class="divider"><span>or join a friend</span></div>
+        <div id="joinSection">
+          <div class="divider"><span>or join a friend</span></div>
 
-        <form id="joinForm" class="join-row">
-          <input id="codeInput" type="text" maxlength="5" placeholder="Game code" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Game code">
-          <button class="btn" type="submit">Join</button>
-        </form>
+          <form id="joinForm" class="join-row">
+            <input id="codeInput" type="text" maxlength="5" placeholder="Game code" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="Game code">
+            <button class="btn" type="submit">Join</button>
+          </form>
+        </div>
       </div>
 
       <!-- Invited by link -->

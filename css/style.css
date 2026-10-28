@@ -203,6 +203,30 @@ input[type="text"] {
 input[type="text"]:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(242, 194, 107, 0.2); }
 input::placeholder { color: var(--faint); }
 
+.mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin-top: 22px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid var(--line);
+}
+.mode-tab {
+  min-height: 40px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.mode-tab:hover { color: var(--text); }
+.mode-tab.active { background: rgba(255, 255, 255, 0.12); color: var(--text); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+.mode-tabs + h2 { margin-top: 16px !important; }
+
 .side-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .side-btn {
   display: flex;
