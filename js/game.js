@@ -122,7 +122,7 @@ export function deploy(state, side, ranks) {
   if (state.ready[side]) return fail('Your army is already deployed.');
   if (!isValidArmy(ranks)) return fail('That army is not a valid Stratego army.');
   homeSquares(side).forEach((sq, i) => {
-    state.board[sq] = { id: state.nextId++, side, rank: ranks[i], revealed: false, moved: false };
+    state.board[sq] = { id: state.nextId++, side, rank: ranks[i], seen: false, moved: false };
   });
   state.ready[side] = true;
   if (state.ready.red && state.ready.blue) {
@@ -200,7 +200,9 @@ function finish(state, winner, reason) {
 }
 
 // Applies a move for `side`. Returns { ok, event } where event describes what
-// happened publicly (ranks only appear when pieces fought).
+// happened publicly. Ranks only appear in a battle, and only for that moment:
+// afterwards the survivor is face-down again, as in the board game, so players
+// have to remember what they saw. `seen` records that the enemy has seen it.
 export function move(state, side, from, to) {
   if (state.phase !== 'play') return fail('The game is not in progress.');
   if (state.turn !== side) return fail("It's not your turn.");
@@ -213,13 +215,12 @@ export function move(state, side, from, to) {
   const [tx, ty] = xy(to);
   const distance = Math.abs(fx - tx) + Math.abs(fy - ty);
   piece.moved = true;
-  // Moving more than one square gives a scout away anyway.
-  if (distance > 1) piece.revealed = true;
 
   let event;
   state.board[from] = null;
   if (!target) {
     state.board[to] = piece;
+    // Only a scout can run several squares, so the log may say so.
     event = { kind: 'move', side, from, to, id: piece.id, rank: distance > 1 ? piece.rank : undefined };
   } else {
     const result = fight(piece.rank, target.rank);
@@ -230,10 +231,10 @@ export function move(state, side, from, to) {
     };
     if (result === 'attacker') {
       state.board[to] = piece;
-      piece.revealed = true;
+      piece.seen = true;
       state.lost[target.side].push(target.rank);
     } else if (result === 'defender') {
-      target.revealed = true;
+      target.seen = true;
       state.lost[side].push(piece.rank);
     } else {
       state.board[to] = null;
@@ -262,16 +263,16 @@ export function resign(state, side) {
   return { ok: true, event: { kind: 'resign', side, winner: state.winner } };
 }
 
-// What `side` is allowed to know: enemy ranks stay hidden until revealed,
-// and everything is shown once the game ends.
+// What `side` is allowed to know: enemy ranks stay hidden (even pieces that
+// have fought), and everything is shown once the game ends.
 export function viewFor(state, side) {
   const showAll = state.phase === 'over';
   return {
     ...state,
     board: state.board.map((p) => {
       if (!p) return null;
-      if (p.side === side || p.revealed || showAll) return { ...p };
-      return { id: p.id, side: p.side, rank: null, revealed: false, moved: p.moved };
+      if (p.side === side || showAll) return { ...p };
+      return { id: p.id, side: p.side, rank: null, moved: p.moved };
     }),
     ready: { ...state.ready },
     recent: { red: state.recent.red.map((m) => ({ ...m })), blue: state.recent.blue.map((m) => ({ ...m })) },

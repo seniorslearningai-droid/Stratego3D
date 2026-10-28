@@ -264,6 +264,8 @@ class Piece {
     this.square = -1;
     this.dead = false;
     this.paintKey = '';
+    this.shownRank = null; // an enemy rank shown just for the length of a battle
+    this.flips = 0;
 
     this.root = new THREE.Group();
     this.lift = new THREE.Group();
@@ -299,18 +301,20 @@ class Piece {
   }
 
   paint(data, viewer, showSeen) {
-    const known = !!data.rank;
+    this.data = data;
+    const rank = data.rank || this.shownRank;
+    const known = !!rank;
     const mine = data.side === viewer;
-    const seen = mine && known && data.revealed && showSeen;
-    const key = `${data.rank}|${viewer}|${seen}`;
+    const seen = mine && known && data.seen && showSeen;
+    const key = `${rank}|${viewer}|${seen}`;
     if (key === this.paintKey) return;
     this.paintKey = key;
     const emblem = faceMaterial(emblemTexture(data.side));
-    this.front.material = known ? faceMaterial(rankFaceTexture(data.side, data.rank, seen)) : emblem;
-    this.back.material = known && !mine ? faceMaterial(rankFaceTexture(data.side, data.rank, false)) : emblem;
+    this.front.material = known ? faceMaterial(rankFaceTexture(data.side, rank, seen)) : emblem;
+    this.back.material = known && !mine ? faceMaterial(rankFaceTexture(data.side, rank, false)) : emblem;
     this.top.visible = known;
     if (known) {
-      this.top.material = faceMaterial(topTexture(data.side, data.rank));
+      this.top.material = faceMaterial(topTexture(data.side, rank));
       this.top.rotation.set(-Math.PI / 2, 0, mine ? 0 : Math.PI);
     }
   }
@@ -668,7 +672,7 @@ export class BoardScene {
 
   // ------------------------------------------------------------ pieces
 
-  // cells: 100 entries of null | { id, side, rank, revealed }.
+  // cells: 100 entries of null | { id, side, rank, seen }.
   // event: the move that produced these cells, so it can be animated.
   // Returns how long the animation runs, in ms.
   sync(cells, event = null) {
@@ -691,6 +695,12 @@ export class BoardScene {
         squareCenter(sq, piece.root.position);
         piece.square = sq;
       }
+      const survivor = fight && (event.result === 'attacker' ? event.attacker : event.result === 'defender' ? event.defender : null);
+      if (survivor && survivor.id === data.id && !data.rank) {
+        // Show the enemy's rank for the battle, then turn it face-down again.
+        piece.shownRank = survivor.rank;
+        this.flipDown(piece, fight.hideAt);
+      }
       piece.paint(data, this.viewer, this.showSeen);
       if (piece.square !== sq) {
         const from = piece.square;
@@ -709,7 +719,7 @@ export class BoardScene {
       if (seen.has(id) || piece.dead) continue;
       if (dying.has(id)) {
         const info = dying.get(id);
-        piece.paint({ id, side: info.side, rank: info.rank, revealed: true }, this.viewer, false);
+        piece.paint({ id, side: info.side, rank: info.rank }, this.viewer, false);
         if (id === event.attacker.id) this.hop(piece, squareCenter(event.from), fight.strike, { height: 0.3 });
         this.sink(piece, fight.sinkAt);
       } else {
@@ -727,7 +737,27 @@ export class BoardScene {
     const b = squareCenter(event.to);
     const strike = b.clone().add(a.clone().sub(b).setLength(0.55));
     const clashAt = hopDuration(a.distanceTo(strike));
-    return { strike, clashAt, sinkAt: clashAt + 350, advanceAt: clashAt + 800 };
+    return { strike, clashAt, sinkAt: clashAt + 350, advanceAt: clashAt + 800, hideAt: clashAt + 2300 };
+  }
+
+  // Spin the piece edge-on, swap to its plain back, and spin it home.
+  flipDown(piece, delay) {
+    const flip = ++piece.flips;
+    let swapped = false;
+    this.tween({
+      delay,
+      duration: 650,
+      update: (t) => {
+        if (flip !== piece.flips) return;
+        if (!swapped && t >= 0.5) {
+          swapped = true;
+          piece.shownRank = null;
+          piece.paint(piece.data, this.viewer, this.showSeen);
+        }
+        piece.lift.rotation.y = Math.sin(Math.PI * t) * (Math.PI / 2);
+        piece.lift.position.y = Math.sin(Math.PI * t) * 0.18;
+      },
+    });
   }
 
   removePiece(piece) {

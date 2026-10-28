@@ -12,7 +12,7 @@ function board(pieces, turn = 'red') {
   s.ready = { red: true, blue: true };
   s.turn = turn;
   for (const [x, y, side, rank] of pieces) {
-    s.board[idx(x, y)] = { id: s.nextId++, side, rank, revealed: false, moved: false };
+    s.board[idx(x, y)] = { id: s.nextId++, side, rank, seen: false, moved: false };
   }
   return s;
 }
@@ -76,7 +76,8 @@ test('attacks resolve and record losses', () => {
   const r = move(s, 'red', idx(4, 5), idx(4, 4));
   assert.equal(r.event.result, 'attacker');
   assert.equal(s.board[idx(4, 4)].rank, 'captain');
-  assert.equal(s.board[idx(4, 4)].revealed, true);
+  assert.equal(r.event.attacker.rank, 'captain', 'the battle itself shows both ranks');
+  assert.equal(r.event.defender.rank, 'lieutenant');
   assert.deepEqual(s.lost.blue, ['lieutenant']);
   assert.equal(remaining(s, 'blue').lieutenant, RANKS.lieutenant.count - 1);
 });
@@ -92,7 +93,6 @@ test('bombs stay after destroying an attacker', () => {
   const s = board([[4, 5, 'red', 'general'], [4, 4, 'blue', 'bomb'], [0, 0, 'blue', 'scout'], [9, 9, 'red', 'scout']]);
   move(s, 'red', idx(4, 5), idx(4, 4));
   assert.equal(s.board[idx(4, 4)].rank, 'bomb');
-  assert.equal(s.board[idx(4, 4)].revealed, true);
   assert.equal(s.board[idx(4, 5)], null);
 });
 
@@ -126,7 +126,22 @@ test('two-square rule stops endless shuttling', () => {
   assert.ok(legalTargets(s, b).includes(idx(1, 7)), 'other moves still fine');
 });
 
-test('views hide enemy ranks until revealed, and show all at the end', () => {
+test('battle winners go face-down again for the opponent', () => {
+  const s = board([[4, 5, 'red', 'captain'], [4, 4, 'blue', 'lieutenant'], [4, 1, 'blue', 'bomb'],
+    [0, 0, 'blue', 'scout'], [9, 9, 'red', 'scout'], [9, 6, 'red', 'scout']]);
+  move(s, 'red', idx(4, 5), idx(4, 4));
+  const winner = s.board[idx(4, 4)];
+  assert.equal(viewFor(s, 'blue').board[idx(4, 4)].rank, null, 'blue has to remember it');
+  assert.equal(viewFor(s, 'red').board[idx(4, 4)].seen, true, 'red knows blue has seen it');
+  assert.equal(winner.seen, true);
+
+  move(s, 'blue', idx(0, 0), idx(0, 1));
+  move(s, 'red', idx(9, 6), idx(9, 3)); // scout runs three squares
+  assert.equal(viewFor(s, 'blue').board[idx(9, 3)].rank, null, 'a running scout is not shown either');
+  assert.equal(s.log.at(-1).rank, 'scout', 'but the log can say a scout ran');
+});
+
+test('views hide enemy ranks, and show all at the end', () => {
   const s = newGame();
   assert.ok(deploy(s, 'red', randomArmy('red')).ok);
   assert.equal(deploy(s, 'red', randomArmy('red')).ok, false, 'cannot deploy twice');

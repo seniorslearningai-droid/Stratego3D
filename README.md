@@ -31,7 +31,7 @@ The player who creates the game is the **host**. Their browser keeps the real ga
 
 ## Rules in brief
 
-- Higher rank wins an attack; equal ranks both leave the board.
+- Higher rank wins an attack; equal ranks both leave the board. Both ranks are shown during the battle, then the winner turns face-down again, so you have to remember what you saw.
 - Bombs and the Flag never move. Anything that hits a Bomb loses, except a Miner (3).
 - Scouts (2) move any number of empty squares in a straight line.
 - The Spy beats the Marshal (10) only when the Spy attacks.

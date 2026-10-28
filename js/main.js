@@ -309,7 +309,7 @@ function displayCells() {
   const cells = app.view.board.slice();
   if (app.draft) {
     homeSquares(app.mySide).forEach((sq, i) => {
-      cells[sq] = { id: app.draft[i].id, side: app.mySide, rank: app.draft[i].rank, revealed: false };
+      cells[sq] = { id: app.draft[i].id, side: app.mySide, rank: app.draft[i].rank };
     });
   }
   return cells;
@@ -829,7 +829,7 @@ function lobbyBoard() {
   const cells = Array(100).fill(null);
   for (const side of ['red', 'blue']) {
     const army = randomArmy(side);
-    homeSquares(side).forEach((sq, i) => { cells[sq] = { id: `L${side}${i}`, side, rank: army[i], revealed: true }; });
+    homeSquares(side).forEach((sq, i) => { cells[sq] = { id: `L${side}${i}`, side, rank: army[i] }; });
   }
   scene.setViewer('red', false);
   scene.setLobby(true);
