@@ -36,38 +36,69 @@ function knowledge(view, side, remembers = () => true) {
     else known.delete(id);
   }
   let unmoved = 0;
+  let flagWeights = 0;
   let enemyPieces = 0;
   let myMovable = 0;
   let myMiners = 0;
   let cheapest = Infinity;
-  for (const p of view.board) {
-    if (!p) continue;
+  let myFlag = null;
+  let enemyMarshal = null;
+  let flagGuess = null; // the unmoved enemy piece most likely to be their flag
+  view.board.forEach((p, sq) => {
+    if (!p) return;
     if (p.side === enemy) {
       enemyPieces++;
-      if (!known.has(p.id) && !p.moved) unmoved++;
+      if (!known.has(p.id) && !p.moved) {
+        unmoved++;
+        flagWeights += flagWeight(enemy, sq);
+        if (flagGuess == null || flagWeight(enemy, sq) > flagWeight(enemy, flagGuess)) flagGuess = sq;
+      }
+      if (known.get(p.id) === 'marshal') enemyMarshal = sq;
+    } else if (p.rank === 'flag') {
+      myFlag = sq;
     } else if (!RANKS[p.rank].immobile) {
       myMovable++;
       if (p.rank === 'miner') myMiners++;
       cheapest = Math.min(cheapest, VALUE[p.rank]);
     }
-  }
+  });
   const enemyImmobile = pool.bomb + pool.flag + [...known.values()].filter((r) => RANKS[r].immobile).length;
   const enemyMovable = Math.max(1, enemyPieces - enemyImmobile);
-  return { known, pool, unmoved, myMovable, enemyMovable, myMiners, cheapest };
+  return {
+    enemy, known, pool, unmoved, flagWeights, myMovable, enemyMovable, myMiners, cheapest, myFlag, enemyMarshal, flagGuess,
+  };
 }
 
-// Chances of each rank for an enemy piece. Pieces that have moved can't be
-// bombs or the flag, so those belong to the pieces that haven't.
-function odds(piece, k) {
+// Flags are usually hidden at the back, so unmoved pieces there are likelier.
+function flagWeight(side, sq) {
+  const fromBack = side === 'red' ? 9 - xy(sq)[1] : xy(sq)[1];
+  return [3, 1.5, 0.7, 0.35][fromBack] ?? 0.1;
+}
+
+const dist = (a, b) => {
+  const [ax, ay] = xy(a);
+  const [bx, by] = xy(b);
+  return Math.abs(ax - bx) + Math.abs(ay - by);
+};
+
+// Chances of each rank for the enemy piece on `sq`. Pieces that have moved
+// can't be bombs or the flag, so those belong to the pieces that haven't.
+function odds(piece, k, sq) {
   const seen = k.known.get(piece.id);
   if (seen) return { [seen]: 1 };
   const out = {};
-  const immobile = k.pool.bomb + k.pool.flag;
+  let pFlag = 0;
+  let pBomb = 0;
+  if (!piece.moved && k.unmoved) {
+    pFlag = k.pool.flag && k.flagWeights ? Math.min(1, (k.pool.flag * flagWeight(k.enemy, sq)) / k.flagWeights) : 0;
+    pBomb = Math.min(1 - pFlag, k.pool.bomb / k.unmoved);
+  }
   const movableTotal = RANK_KEYS.reduce((n, r) => n + (RANKS[r].immobile ? 0 : k.pool[r]), 0);
-  const pImmobile = piece.moved || !k.unmoved ? 0 : Math.min(1, immobile / k.unmoved);
+  const pMovable = 1 - pFlag - pBomb;
   for (const r of RANK_KEYS) {
-    if (RANKS[r].immobile) out[r] = immobile ? (pImmobile * k.pool[r]) / immobile : 0;
-    else out[r] = movableTotal ? ((1 - pImmobile) * k.pool[r]) / movableTotal : 0;
+    if (r === 'flag') out[r] = pFlag;
+    else if (r === 'bomb') out[r] = pBomb;
+    else out[r] = movableTotal ? (pMovable * k.pool[r]) / movableTotal : 0;
   }
   return out;
 }
@@ -91,7 +122,7 @@ function danger(view, side, k, rank, sq, ignore = -1) {
     const e = view.board[n];
     if (!e || e.side === side || n === ignore) continue;
     let pBeat = 0;
-    for (const [r, p] of Object.entries(odds(e, k))) {
+    for (const [r, p] of Object.entries(odds(e, k, n))) {
       if (!p || RANKS[r].immobile) continue;
       const res = fight(r, rank);
       pBeat += p * (res === 'attacker' ? 1 : res === 'both' ? 0.5 : 0);
@@ -114,7 +145,7 @@ function scoreMove(view, side, k, from, to, rng, noise) {
   if (last && last.id === piece.id && last.from === to) score -= 0.5;
 
   if (target) {
-    const o = odds(target, k);
+    const o = odds(target, k, to);
     let ev = 0;
     let pWin = 0;
     for (const [r, p] of Object.entries(o)) {
@@ -123,8 +154,15 @@ function scoreMove(view, side, k, from, to, rng, noise) {
       if (fight(rank, r) === 'attacker') pWin += p;
     }
     score += ev;
+    // Taking (or trading off) their last piece that can move wins the game.
+    const seenRank = k.known.get(target.id);
+    if (k.enemyMovable <= 1 && (target.moved || (seenRank && !RANKS[seenRank].immobile))) {
+      const pBoth = Object.entries(o).reduce((n, [r, p]) => n + (fight(rank, r) === 'both' ? p : 0), 0);
+      score += 30 * pWin + (k.myMovable > 1 ? 30 * pBoth : 0);
+    }
     // Leave pieces that haven't moved (likely bombs) to the miners.
-    if (k.myMiners && rank !== 'miner' && VALUE[rank] >= 4) score -= (o.bomb || 0) * VALUE[rank];
+    // (less fussy the longer the game drags on).
+    if (k.myMiners && rank !== 'miner' && VALUE[rank] >= 4) score -= (o.bomb || 0) * VALUE[rank] * (1 - boldness * 0.6);
     // Cheap pieces are worth spending to find out what something is.
     if (!k.known.has(target.id) && VALUE[rank] <= 1.6) score += 0.5;
     // Late on, send the cheapest pieces in (whatever they are by then).
@@ -133,6 +171,14 @@ function scoreMove(view, side, k, from, to, rng, noise) {
       score += boldness * (k.myMiners ? Math.max(0, 1 - (o.bomb || 0) * 2.5) : 2.5);
     }
     score -= pWin * danger(view, side, k, rank, to, to) * 0.6;
+    // Deal with anything that gets near our flag.
+    if (k.myFlag != null) {
+      const d = dist(to, k.myFlag);
+      if (d <= 1) score += 6 * pWin;
+      else if (d <= 2) score += 2 * pWin;
+    }
+    // Don't give away where the Marshal and General are for nothing.
+    if (!piece.seen && VALUE[rank] >= 8 && !k.known.has(target.id)) score -= 0.12 * VALUE[rank];
     return score;
   }
 
@@ -144,6 +190,21 @@ function scoreMove(view, side, k, from, to, rng, noise) {
   score += rows * (VALUE[rank] <= 3 ? 0.07 : 0.03);
   // Expendable pieces close in on the enemy.
   if (VALUE[rank] <= 3) score += (nearestEnemy(view, side, from) - nearestEnemy(view, side, to)) * (0.1 + boldness * 0.4);
+  // Miners (or, with none left, the cheapest pieces) go after the likely flag.
+  const flagHunter = k.myMiners ? rank === 'miner' : VALUE[rank] <= k.cheapest;
+  if (flagHunter && k.flagGuess != null) score += (dist(from, k.flagGuess) - dist(to, k.flagGuess)) * (0.2 + boldness * 0.3);
+  // The Spy goes looking for a Marshal it knows about.
+  if (rank === 'spy' && k.enemyMarshal != null) score += (dist(from, k.enemyMarshal) - dist(to, k.enemyMarshal)) * 0.4;
+  // Strong pieces come back to guard the flag when enemies close in.
+  if (k.myFlag != null && VALUE[rank] >= 3) {
+    const intruder = nearestEnemyTo(view, side, k.myFlag);
+    if (intruder != null && dist(intruder, k.myFlag) <= 3) score += (dist(from, intruder) - dist(to, intruder)) * 0.3;
+  }
+  // Near the end, hunt down their last moving pieces while we outnumber them.
+  if (k.enemyMovable <= 3 && k.myMovable > k.enemyMovable && VALUE[rank] >= 3) {
+    const prey = nearestEnemyTo(view, side, to);
+    if (prey != null) score += (dist(from, prey) - dist(to, prey)) * 0.25;
+  }
   // Line up on enemy pieces we know we can beat.
   const [tx, ty] = xy(to);
   for (const [dx, dy] of DIRS) {
@@ -155,6 +216,15 @@ function scoreMove(view, side, k, from, to, rng, noise) {
     if (seen && fight(rank, seen) === 'attacker') score += 0.25 * Math.min(VALUE[seen], 12);
   }
   return score;
+}
+
+// The square of the enemy piece closest to `sq`.
+function nearestEnemyTo(view, side, sq) {
+  let best = null;
+  view.board.forEach((p, i) => {
+    if (p && p.side !== side && (p.moved || p.rank) && (best == null || dist(i, sq) < dist(best, sq))) best = i;
+  });
+  return best;
 }
 
 function nearestEnemy(view, side, sq) {
@@ -181,15 +251,15 @@ function stableRandom(seed, id) {
 // they've seen, judge moves more loosely and now and then just play anything.
 export function chooseMove(view, side, rng = Math.random, { level = 100, seed = 0 } = {}) {
   const skill = (Math.min(100, Math.max(1, level)) - 1) / 99;
-  const memory = 0.2 + 0.8 * skill;
+  const memory = 0.55 + 0.45 * skill;
   const k = knowledge(view, side, (id) => stableRandom(seed, id) < memory);
   const moves = [];
   view.board.forEach((p, from) => {
     if (p && p.side === side) for (const to of legalTargets(view, from)) moves.push({ from, to });
   });
   if (!moves.length) return null;
-  if (rng() < (1 - skill) ** 2 * 0.5) return moves[Math.floor(rng() * moves.length)];
-  const noise = 0.05 + (1 - skill) ** 1.5 * 4;
+  if (rng() < (1 - skill) ** 2 * 0.2) return moves[Math.floor(rng() * moves.length)];
+  const noise = 0.03 + (1 - skill) ** 1.5 * 1.6;
   let best = null;
   for (const m of moves) {
     const score = scoreMove(view, side, k, m.from, m.to, rng, noise);
