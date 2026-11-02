@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ARMY_SIZE, RANKS, deploy, fight, homeSquares, idx, isValidArmy, legalTargets,
+  ARMY_SIZE, armyCanMove, RANKS, deploy, fight, homeSquares, idx, isValidArmy, legalTargets,
   move, newGame, randomArmy, remaining, resign, viewFor, xy,
 } from '../js/game.js';
 
@@ -30,6 +30,19 @@ test('random armies are valid with the flag on the back row', () => {
       assert.equal(xy(flagSq)[1], side === 'red' ? 9 : 0);
     }
   }
+});
+
+test('spots an army that is walled in by its own bombs and the lakes', () => {
+  const front = ['bomb', 'bomb', 'marshal', 'general', 'bomb', 'bomb', 'colonel', 'bomb', 'bomb', 'flag'];
+  const rest = { colonel: 1, major: 3, captain: 4, lieutenant: 4, sergeant: 4, miner: 5, scout: 8, spy: 1 };
+  const walled = [...front];
+  for (const [r, n] of Object.entries(rest)) for (let i = 0; i < n; i++) walled.push(r);
+  assert.equal(armyCanMove('red', walled), false);
+  // Swap a front-row bomb with the Spy from the back: now the Spy can step forward.
+  const fixed = [...walled];
+  [fixed[0], fixed[39]] = [fixed[39], fixed[0]];
+  assert.equal(armyCanMove('red', fixed), true);
+  for (let i = 0; i < 100; i++) assert.ok(armyCanMove('blue', randomArmy('blue')), 'random armies can always move');
 });
 
 test('combat rules', () => {

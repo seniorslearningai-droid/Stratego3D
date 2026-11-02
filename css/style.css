@@ -573,6 +573,18 @@ input::placeholder { color: var(--faint); }
 .setup-bar p { margin: 0; color: var(--muted); font-size: 14px; }
 .setup-bar p b { color: var(--text); }
 .setup-actions { display: flex; gap: 8px; flex: none; }
+.setup-bar.warn {
+  border-color: rgba(245, 183, 49, 0.8);
+  box-shadow: 0 0 0 3px rgba(245, 183, 49, 0.18), var(--shadow);
+}
+.setup-bar.warn p { display: flex; align-items: center; gap: 10px; color: #ffe3a6; }
+.setup-bar.warn p b { color: #ffd166; }
+.warn-icon { width: 26px; height: 26px; flex: none; animation: pulse-warn 1.4s ease-in-out infinite; }
+@keyframes pulse-warn { 50% { transform: scale(1.12); } }
+
+.warn-card { text-align: center; width: min(420px, 100%); border-color: rgba(245, 183, 49, 0.55); }
+.warn-sign { width: 64px; height: 64px; display: block; margin: 0 auto 6px; }
+.warn-card h2 { color: #ffd166; }
 
 /* Combat card */
 .combat {

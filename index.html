@@ -212,6 +212,19 @@
     </div>
   </div>
 
+  <!-- ============ Walled-in warning ============ -->
+  <div id="stuckModal" class="modal" hidden>
+    <div class="modal-card warn-card" role="alertdialog" aria-labelledby="stuckTitle" aria-describedby="stuckText">
+      <svg class="warn-sign" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 1.5 21h21L12 2.5z" fill="#f5b731"/><path d="M11 9h2v6.5h-2zM11 17.2h2v2h-2z" fill="#2a1c05"/></svg>
+      <h2 id="stuckTitle">Are you sure?</h2>
+      <p id="stuckText">Your bombs and the lakes have walled in your whole army, so <b>none of your pieces can move</b>. If the battle starts like this, you lose straight away.</p>
+      <div class="modal-actions">
+        <button class="btn primary" id="fixSetupBtn">Go back and fix it</button>
+        <button class="btn ghost danger" id="readyAnywayBtn">Yes, I'm sure</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ============ Rules ============ -->
   <div id="rulesModal" class="modal" hidden>
     <div class="modal-card rules-card">

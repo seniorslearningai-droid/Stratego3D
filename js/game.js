@@ -70,7 +70,25 @@ function shuffle(arr, rng) {
 
 // A random but sensible deployment: flag on the back row with a couple of
 // bombs guarding it, everything else shuffled. Returned in homeSquares() order.
+// Never one that leaves the army unable to move.
 export function randomArmy(side, rng = Math.random) {
+  let army = shuffledArmy(side, rng);
+  for (let tries = 0; tries < 50 && !armyCanMove(side, army); tries++) army = shuffledArmy(side, rng);
+  return army;
+}
+
+// Whether an army deployed like this has any piece that can make a first
+// move. Bombs and the lakes can wall every piece in; at the start the enemy
+// is too far away to matter.
+export function armyCanMove(side, ranks) {
+  const s = newGame();
+  homeSquares(side).forEach((sq, i) => {
+    s.board[sq] = { id: i + 1, side, rank: ranks[i], seen: false, moved: false };
+  });
+  return hasLegalMove(s, side);
+}
+
+function shuffledArmy(side, rng) {
   const squares = homeSquares(side);
   const placed = new Map();
   const back = BACK_ROW[side];

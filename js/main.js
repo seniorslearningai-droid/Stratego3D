@@ -2,7 +2,7 @@
 // the HUD and the 3D board.
 
 import {
-  RANKS, RANK_KEYS, deploy, homeSquares, isValidArmy, legalTargets, move, newGame, other,
+  RANKS, RANK_KEYS, armyCanMove, deploy, homeSquares, isValidArmy, legalTargets, move, newGame, other,
   randomArmy, remaining, resign, squareName, viewFor,
 } from './game.js';
 import { GuestLink, HostLink, isCode, makeCode, makeToken, normalizeCode } from './net.js';
@@ -335,6 +335,14 @@ function saveDraft() {
   store.set(KEYS.draft(app.code, app.mySide), app.draft.map((d) => d.rank));
 }
 
+const draftCanMove = () => armyCanMove(app.mySide, app.draft.map((d) => d.rank));
+
+function deployDraft() {
+  if (!app.draft) return;
+  app.swapFrom = null;
+  sendAction({ t: 'deploy', ranks: app.draft.map((d) => d.rank) });
+}
+
 function shuffleDraft() {
   if (!app.draft) return;
   // Reuse the same pieces so they visibly hop to their new squares.
@@ -456,6 +464,7 @@ function onHover(squares) {
 
 // ---------------------------------------------------------------- rendering the HUD
 
+const WARN_SVG = '<svg class="warn-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5 1.5 21h21L12 2.5z" fill="#f5b731"/><path d="M11 9h2v6.5h-2zM11 17.2h2v2h-2z" fill="#2a1c05"/></svg>';
 const BOMB_SVG = '<svg viewBox="0 0 24 24"><circle cx="10.5" cy="14" r="7"/><rect x="14" y="5" width="4.5" height="4.5" transform="rotate(45 16.2 7.2)"/><path d="M17.5 5.2q2-3.4 4.4-2" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>';
 const FLAG_SVG = '<svg viewBox="0 0 24 24"><rect x="5" y="2.5" width="2.2" height="19" rx="1"/><path d="M7.2 3.5c4.5-2 6.5 2 12.3 0v9.5c-5.8 2-7.8-2-12.3 0z"/></svg>';
 
@@ -609,8 +618,11 @@ function renderBottomBar() {
   const shuffle = $('#shuffleBtn');
   const ready = $('#readyBtn');
   bar.hidden = false;
+  bar.classList.toggle('warn', !!app.draft && !draftCanMove());
   if (v.phase === 'setup' && app.draft) {
-    if (app.swapFrom != null) {
+    if (!draftCanMove()) {
+      text.innerHTML = `${WARN_SVG}<span><b>None of your pieces can move!</b> Bombs and the lakes have walled your army in. Swap a bomb out of the way.</span>`;
+    } else if (app.swapFrom != null) {
       const slot = homeSquares(app.mySide).indexOf(app.swapFrom);
       text.innerHTML = `Now tap the piece to swap with your <b>${RANKS[app.draft[slot].rank].name}</b>.`;
     } else {
@@ -1143,8 +1155,17 @@ function bindUi() {
     const v = app.view;
     if (v.phase === 'over') return sendAction({ t: 'rematch' });
     if (!app.draft) return;
-    app.swapFrom = null;
-    sendAction({ t: 'deploy', ranks: app.draft.map((d) => d.rank) });
+    if (!draftCanMove()) {
+      $('#stuckModal').hidden = false;
+      $('#fixSetupBtn').focus();
+      return;
+    }
+    deployDraft();
+  });
+  $('#fixSetupBtn').addEventListener('click', () => { $('#stuckModal').hidden = true; });
+  $('#readyAnywayBtn').addEventListener('click', () => {
+    $('#stuckModal').hidden = true;
+    deployDraft();
   });
 
   $('#copyLink').addEventListener('click', copyLink);
@@ -1205,6 +1226,7 @@ function bindUi() {
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     $('#rulesModal').hidden = true;
+    $('#stuckModal').hidden = true;
     if (app.selected != null || app.swapFrom != null) {
       app.selected = null;
       app.swapFrom = null;
