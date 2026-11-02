@@ -278,6 +278,7 @@ const LINES = {
 
 export function robotRemark(event, side, rng = Math.random) {
   const pick = (list) => list[Math.floor(rng() * list.length)];
+  if (event.reason === 'draw') return 'A draw! Neither of us can move. Good game.';
   if (event.winner) return pick(event.winner === side ? LINES.gameWon : LINES.gameLost);
   if (event.kind !== 'attack' || event.result === 'both' || rng() > 0.35) return null;
   const robotWon = (event.result === 'attacker' ? event.attacker : event.defender).side === side;

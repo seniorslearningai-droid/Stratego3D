@@ -129,6 +129,8 @@ export function deploy(state, side, ranks) {
     state.phase = 'play';
     state.turn = 'red';
     addLog(state, { kind: 'start' });
+    // A setup can wall its own pieces in (bombs plus the lakes).
+    settleStuck(state);
   }
   return { ok: true };
 }
@@ -192,6 +194,21 @@ function addLog(state, entry) {
   if (state.log.length > 60) state.log.splice(0, state.log.length - 60);
 }
 
+// Called whenever it becomes someone's turn. A player who can't move loses;
+// if neither side can move at all, the game is a draw.
+function settleStuck(state) {
+  const next = state.turn;
+  if (hasLegalMove(state, next)) return;
+  const opponent = other(next);
+  // The two-square rule only blocks a piece for a turn, so ignore it here.
+  const saved = state.recent[opponent];
+  state.recent[opponent] = [];
+  const opponentCanMove = hasLegalMove(state, opponent);
+  state.recent[opponent] = saved;
+  if (opponentCanMove) finish(state, opponent, 'stuck');
+  else finish(state, null, 'draw');
+}
+
 function finish(state, winner, reason) {
   state.phase = 'over';
   state.winner = winner;
@@ -250,10 +267,12 @@ export function move(state, side, from, to) {
   state.turn = other(side);
   addLog(state, { ...event });
 
-  // A player who can't move on their turn loses.
   if (target && target.rank === 'flag') finish(state, side, 'flag');
-  else if (!hasLegalMove(state, state.turn)) finish(state, side, 'stuck');
-  if (state.phase === 'over') event.winner = state.winner;
+  else settleStuck(state);
+  if (state.phase === 'over') {
+    event.winner = state.winner;
+    event.reason = state.reason;
+  }
   return { ok: true, event };
 }
 

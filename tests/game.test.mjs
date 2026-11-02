@@ -113,6 +113,41 @@ test('a player with no legal moves loses', () => {
   assert.equal(s.reason, 'stuck');
 });
 
+test('a player whose pieces are all boxed in loses, even with pieces left', () => {
+  // Red's scout is walled in by its own bombs in the corner.
+  const s = board([[0, 9, 'red', 'scout'], [1, 9, 'red', 'bomb'], [0, 8, 'red', 'bomb'], [5, 9, 'red', 'flag'],
+    [4, 5, 'red', 'sergeant'], [4, 4, 'blue', 'captain'], [9, 0, 'blue', 'flag']], 'red');
+  move(s, 'red', idx(4, 5), idx(4, 4)); // red's last free piece loses
+  assert.equal(s.phase, 'play', 'blue still gets to move');
+  move(s, 'blue', idx(4, 4), idx(4, 5));
+  assert.equal(s.phase, 'over');
+  assert.equal(s.winner, 'blue');
+  assert.equal(s.reason, 'stuck');
+});
+
+test('if neither player can move, the game is a draw', () => {
+  const s = board([[4, 5, 'red', 'major'], [4, 4, 'blue', 'major'], [0, 9, 'red', 'flag'], [9, 0, 'blue', 'flag'], [8, 0, 'blue', 'bomb']]);
+  const r = move(s, 'red', idx(4, 5), idx(4, 4)); // equal ranks: both fall
+  assert.equal(s.phase, 'over');
+  assert.equal(s.winner, null);
+  assert.equal(s.reason, 'draw');
+  assert.equal(r.event.reason, 'draw');
+});
+
+test('a setup that leaves the first player unable to move loses straight away', () => {
+  const s = newGame();
+  // Red's front row: movers only behind the lakes, boxed in by bombs.
+  const front = ['bomb', 'bomb', 'marshal', 'general', 'bomb', 'bomb', 'colonel', 'bomb', 'bomb', 'flag'];
+  const rest = { colonel: 1, major: 3, captain: 4, lieutenant: 4, sergeant: 4, miner: 5, scout: 8, spy: 1 };
+  const ranks = [...front];
+  for (const [r, n] of Object.entries(rest)) for (let i = 0; i < n; i++) ranks.push(r);
+  assert.ok(deploy(s, 'red', ranks).ok);
+  assert.ok(deploy(s, 'blue', randomArmy('blue')).ok);
+  assert.equal(s.phase, 'over');
+  assert.equal(s.winner, 'blue');
+  assert.equal(s.reason, 'stuck');
+});
+
 test('two-square rule stops endless shuttling', () => {
   const s = board([[0, 6, 'red', 'sergeant'], [9, 3, 'blue', 'sergeant'], [9, 0, 'blue', 'flag'], [0, 9, 'red', 'flag']]);
   const a = idx(0, 6);

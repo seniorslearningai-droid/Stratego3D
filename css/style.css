@@ -683,7 +683,7 @@ input::placeholder { color: var(--faint); }
 .over-card { text-align: center; width: min(400px, 100%); }
 .over-card h2 { font-size: 34px; margin-top: 6px; }
 .over-card.win h2 { color: var(--gold); }
-.over-emblem { display: flex; justify-content: center; }
+.over-emblem { display: flex; justify-content: center; gap: 10px; }
 .over-emblem .mini-piece { width: 70px; height: 78px; }
 .modal-actions { display: flex; gap: 10px; justify-content: center; margin: 18px 0 6px; flex-wrap: wrap; }
 

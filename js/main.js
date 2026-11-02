@@ -307,7 +307,8 @@ function react(prev, view, event, duration) {
     setTimeout(() => {
       if (app.view.phase !== 'over') return;
       showGameOver();
-      (app.view.winner === app.mySide ? sfx.win : sfx.lose)();
+      if (!app.view.winner) sfx.join();
+      else (app.view.winner === app.mySide ? sfx.win : sfx.lose)();
     }, prev ? duration + 500 : 0);
   }
 }
@@ -502,8 +503,8 @@ function renderBanner() {
     }
   } else {
     const won = v.winner === app.mySide;
-    text = won ? 'Victory!' : 'Defeat';
-    cls = won ? 'win' : 'lose';
+    text = !v.winner ? 'Draw' : won ? 'Victory!' : 'Defeat';
+    cls = !v.winner ? '' : won ? 'win' : 'lose';
   }
   el.textContent = text;
   el.className = `turn-banner ${cls}`;
@@ -528,7 +529,7 @@ function renderPlayers() {
   let myStatus = 'Ready';
   if (v.phase === 'setup') myStatus = app.draft ? 'Deploying…' : 'Ready';
   else if (v.phase === 'play') myStatus = v.turn === me ? 'Your move' : 'Waiting';
-  else myStatus = v.winner === me ? 'Winner' : 'Defeated';
+  else myStatus = !v.winner ? 'Draw' : v.winner === me ? 'Winner' : 'Defeated';
 
   const joined = app.role === 'guest' || !!app.meta.guestName;
   let theirStatus;
@@ -544,7 +545,7 @@ function renderPlayers() {
   } else if (v.phase === 'play') {
     theirStatus = v.turn === them ? 'Thinking…' : 'Waiting';
   } else {
-    theirStatus = v.winner === them ? 'Winner' : 'Defeated';
+    theirStatus = !v.winner ? 'Draw' : v.winner === them ? 'Winner' : 'Defeated';
   }
 
   const a = playerCard(me, app.myName, myStatus, 'on');
@@ -569,6 +570,7 @@ function sideTag(side) {
 }
 
 function reasonLine(winner, reason) {
+  if (reason === 'draw') return 'Neither side has a piece that can move. The game is a draw.';
   if (reason === 'flag') return `${sideTag(winner)} captured the flag and wins!`;
   if (reason === 'stuck') return `${sideTag(other(winner))} has no pieces that can move. ${sideTag(winner)} wins!`;
   return `${sideTag(other(winner))} resigned. ${sideTag(winner)} wins.`;
@@ -712,13 +714,14 @@ function renderOverModal() {
   if ($('#overModal').hidden || v.phase !== 'over') return;
   const won = v.winner === app.mySide;
   $('.over-card').classList.toggle('win', won);
-  $('#overEmblem').innerHTML = miniPiece(v.winner, 'flag');
-  $('#overTitle').textContent = won ? 'Victory!' : 'Defeat';
+  $('#overEmblem').innerHTML = v.winner ? miniPiece(v.winner, 'flag') : miniPiece('red', 'flag') + miniPiece('blue', 'flag');
+  $('#overTitle').textContent = !v.winner ? "It's a draw" : won ? 'Victory!' : 'Defeat';
   const name = oppName();
   const texts = {
     flag: won ? `You captured ${name}'s flag.` : `${name} captured your flag.`,
     stuck: won ? `${name} has no pieces left that can move.` : 'You have no pieces left that can move.',
     resign: won ? `${name} resigned.` : 'You resigned.',
+    draw: 'Neither of you has a piece that can move.',
   };
   $('#overText').textContent = texts[v.reason] || '';
   const r = app.meta.rematch || {};

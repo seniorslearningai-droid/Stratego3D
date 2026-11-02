@@ -38,7 +38,7 @@ The player who creates the game is the **host**. Their browser keeps the real ga
 - Scouts (2) move any number of empty squares in a straight line.
 - The Spy beats the Marshal (10) only when the Spy attacks.
 - No shuttling between the same two squares more than three turns in a row.
-- Capture the enemy Flag, or leave them with nothing that can move, to win.
+- Capture the enemy Flag, or leave them with nothing that can move, to win. If neither player can move, it's a draw.
 
 The full rules are under the **?** button in the game.
 
