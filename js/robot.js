@@ -1,7 +1,7 @@
 // The computer opponent. It plays fair: it only ever sees its own view of the
 // game (enemy ranks hidden) and remembers what battles showed it, from the log.
 
-import { RANKS, RANK_KEYS, fight, legalTargets, other, randomArmy, remaining, xy } from './game.js';
+import { RANKS, RANK_KEYS, fight, isLake, legalTargets, other, randomArmy, remaining, xy } from './game.js';
 
 // How much the robot cares about each piece.
 const VALUE = {
@@ -16,7 +16,7 @@ export const robotArmy = (side, rng = Math.random) => randomArmy(side, rng);
 // What the robot knows about the enemy: ranks it has seen (by piece id) and
 // how many of each rank are still unaccounted for. `remembers(id)` says
 // whether it kept a piece in mind; the last couple of moves it never forgets.
-function knowledge(view, side, remembers = () => true) {
+function knowledge(view, side, remembers = () => true, peek = null) {
   const enemy = other(side);
   const known = new Map();
   for (const e of view.log) {
@@ -29,6 +29,8 @@ function knowledge(view, side, remembers = () => true) {
       known.set(e.id, e.rank);
     }
   }
+  // Above level 100 the robot is allowed a look at some hidden pieces.
+  if (peek) for (const [id, rank] of peek) known.set(id, rank);
   const pool = remaining(view, enemy);
   const onBoard = new Set(view.board.filter((p) => p && p.side === enemy).map((p) => p.id));
   for (const [id, rank] of known) {
@@ -44,6 +46,7 @@ function knowledge(view, side, remembers = () => true) {
   let myFlag = null;
   let enemyMarshal = null;
   let flagGuess = null; // the unmoved enemy piece most likely to be their flag
+  let knownFlag = null;
   view.board.forEach((p, sq) => {
     if (!p) return;
     if (p.side === enemy) {
@@ -54,6 +57,7 @@ function knowledge(view, side, remembers = () => true) {
         if (flagGuess == null || flagWeight(enemy, sq) > flagWeight(enemy, flagGuess)) flagGuess = sq;
       }
       if (known.get(p.id) === 'marshal') enemyMarshal = sq;
+      if (known.get(p.id) === 'flag') knownFlag = sq;
     } else if (p.rank === 'flag') {
       myFlag = sq;
     } else if (!RANKS[p.rank].immobile) {
@@ -64,8 +68,10 @@ function knowledge(view, side, remembers = () => true) {
   });
   const enemyImmobile = pool.bomb + pool.flag + [...known.values()].filter((r) => RANKS[r].immobile).length;
   const enemyMovable = Math.max(1, enemyPieces - enemyImmobile);
+  if (knownFlag != null) flagGuess = knownFlag;
   return {
     enemy, known, pool, unmoved, flagWeights, myMovable, enemyMovable, myMiners, cheapest, myFlag, enemyMarshal, flagGuess,
+    flagKnown: knownFlag != null,
   };
 }
 
@@ -191,8 +197,15 @@ function scoreMove(view, side, k, from, to, rng, noise) {
   // Expendable pieces close in on the enemy.
   if (VALUE[rank] <= 3) score += (nearestEnemy(view, side, from) - nearestEnemy(view, side, to)) * (0.1 + boldness * 0.4);
   // Miners (or, with none left, the cheapest pieces) go after the likely flag.
-  const flagHunter = k.myMiners ? rank === 'miner' : VALUE[rank] <= k.cheapest;
-  if (flagHunter && k.flagGuess != null) score += (dist(from, k.flagGuess) - dist(to, k.flagGuess)) * (0.2 + boldness * 0.3);
+  if (k.flagKnown && VALUE[rank] <= 6) {
+    // It knows where the flag is: march there by the shortest real route.
+    const before = routeLength(view, side, k, rank, from, k.flagGuess);
+    const after = routeLength(view, side, k, rank, to, k.flagGuess);
+    if (before < Infinity) score += (before - Math.min(after, before + 2)) * 1.2;
+  } else {
+    const flagHunter = k.myMiners ? rank === 'miner' : VALUE[rank] <= k.cheapest;
+    if (flagHunter && k.flagGuess != null) score += (dist(from, k.flagGuess) - dist(to, k.flagGuess)) * (0.2 + boldness * 0.3);
+  }
   // The Spy goes looking for a Marshal it knows about.
   if (rank === 'spy' && k.enemyMarshal != null) score += (dist(from, k.enemyMarshal) - dist(to, k.enemyMarshal)) * 0.4;
   // Strong pieces come back to guard the flag when enemies close in.
@@ -216,6 +229,45 @@ function scoreMove(view, side, k, from, to, rng, noise) {
     if (seen && fight(rank, seen) === 'attacker') score += 0.25 * Math.min(VALUE[seen], 12);
   }
   return score;
+}
+
+// How many steps `rank` needs to get from `start` to `goal`, going around
+// lakes and through only what it can beat. Unknown pieces and our own
+// (which can step aside) cost extra; a bomb blocks all but a miner.
+function routeLength(view, side, k, rank, start, goal) {
+  const cost = new Map([[start, 0]]);
+  const queue = [[0, start]];
+  while (queue.length) {
+    queue.sort((a, b) => a[0] - b[0]);
+    const [c, sq] = queue.shift();
+    if (sq === goal) return c;
+    if (c > cost.get(sq)) continue;
+    const [x, y] = xy(sq);
+    for (const [dx, dy] of DIRS) {
+      const nx = x + dx;
+      const ny = y + dy;
+      if (nx < 0 || ny < 0 || nx > 9 || ny > 9) continue;
+      const n = ny * 10 + nx;
+      if (isLake(n)) continue;
+      const p = view.board[n];
+      let step = 1;
+      if (p && n !== goal) {
+        if (p.side === side) step = 3;
+        else {
+          const r = k.known.get(p.id);
+          if (!r) step = 3;
+          else if (fight(rank, r) === 'attacker') step = 2;
+          else continue;
+        }
+      }
+      const next = c + step;
+      if (next < (cost.get(n) ?? Infinity)) {
+        cost.set(n, next);
+        queue.push([next, n]);
+      }
+    }
+  }
+  return Infinity;
 }
 
 // The square of the enemy piece closest to `sq`.
@@ -246,13 +298,32 @@ function stableRandom(seed, id) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+// Levels 101–120 play like 100 but also get to look at a share of the
+// opponent's hidden pieces: half at 101, rising to all of them at 120.
+export const MAX_LEVEL = 120;
+export function peekShare(level) {
+  if (level <= 100) return 0;
+  return 0.5 + (0.5 * (Math.min(MAX_LEVEL, level) - 101)) / (MAX_LEVEL - 101);
+}
+
+// The hidden enemy pieces a level-101+ robot gets to see: always the same
+// ones for a given piece and game. `board` is the real board, not a view.
+export function peekAt(board, enemy, level, seed) {
+  const share = peekShare(level);
+  const out = new Map();
+  if (!share) return out;
+  for (const p of board) if (p && p.side === enemy && stableRandom(seed + 1, p.id) < share) out.set(p.id, p.rank);
+  return out;
+}
+
 // Picks the robot's move from its own view of the game, or null if it has none.
-// level runs from 1 (easiest) to 100 (hardest). Lower levels forget pieces
+// level runs from 1 (easiest) to 120 (hardest). Lower levels forget pieces
 // they've seen, judge moves more loosely and now and then just play anything.
-export function chooseMove(view, side, rng = Math.random, { level = 100, seed = 0 } = {}) {
+// `peek` is what peekAt() lets a level above 100 see.
+export function chooseMove(view, side, rng = Math.random, { level = 100, seed = 0, peek = null } = {}) {
   const skill = (Math.min(100, Math.max(1, level)) - 1) / 99;
   const memory = 0.55 + 0.45 * skill;
-  const k = knowledge(view, side, (id) => stableRandom(seed, id) < memory);
+  const k = knowledge(view, side, (id) => stableRandom(seed, id) < memory, peek);
   const moves = [];
   view.board.forEach((p, from) => {
     if (p && p.side === side) for (const to of legalTargets(view, from)) moves.push({ from, to });

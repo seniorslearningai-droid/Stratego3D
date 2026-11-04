@@ -6,7 +6,7 @@ import {
   randomArmy, remaining, resign, squareName, viewFor,
 } from './game.js';
 import { GuestLink, HostLink, isCode, makeCode, makeToken, normalizeCode } from './net.js';
-import { chooseMove, robotArmy, robotRemark } from './robot.js';
+import { MAX_LEVEL, chooseMove, peekAt, robotArmy, robotRemark } from './robot.js';
 import { BoardScene } from './scene.js';
 import { isMuted, setMuted, sfx } from './sound.js';
 
@@ -918,7 +918,8 @@ class RobotPlayer {
     const me = this.side;
     if (s.phase === 'setup' && !s.ready[me]) this.ref.act(me, { t: 'deploy', ranks: robotArmy(me) });
     else if (s.phase === 'play' && s.turn === me) {
-      const m = chooseMove(viewFor(s, me), me, Math.random, { level: this.level, seed: this.seed });
+      const peek = peekAt(s.board, other(me), this.level, this.seed);
+      const m = chooseMove(viewFor(s, me), me, Math.random, { level: this.level, seed: this.seed, peek });
       if (m) this.ref.act(me, { t: 'move', from: m.from, to: m.to });
     } else if (s.phase === 'over') this.ref.act(me, { t: 'rematch' });
   }
@@ -953,7 +954,10 @@ function startRobotGame(record) {
   enterGame();
   app.referee.broadcast(null);
   if (!record.chat.length) {
-    app.referee.addChat(other(record.hostSide), `Hello ${record.hostName}! I'm the robot. Good luck — you'll need it. Beep boop.`);
+    const greeting = record.robotLevel > 100
+      ? `Hello ${record.hostName}! At level ${record.robotLevel} I get to peek at some of your hidden pieces. Good luck. Beep boop.`
+      : `Hello ${record.hostName}! I'm the robot. Good luck — you'll need it. Beep boop.`;
+    app.referee.addChat(other(record.hostSide), greeting);
   }
 }
 
@@ -1109,14 +1113,16 @@ function setLobbyMode(mode) {
   $('#levelPicker').hidden = !robot;
 }
 
-const LEVEL_WORDS = [[20, 'Beginner'], [40, 'Easy'], [60, 'Medium'], [80, 'Hard'], [100, 'Expert']];
-const robotLevel = () => Math.min(100, Math.max(1, Math.round(Number($('#levelInput').value) || 50)));
+const LEVEL_WORDS = [[20, 'Beginner'], [40, 'Easy'], [60, 'Medium'], [80, 'Hard'], [100, 'Expert'], [MAX_LEVEL, 'Master']];
+const robotLevel = () => Math.min(MAX_LEVEL, Math.max(1, Math.round(Number($('#levelInput').value) || 50)));
 
 function showLevel() {
   const level = robotLevel();
   const word = LEVEL_WORDS.find(([max]) => level <= max)[1];
   $('#levelValue').textContent = `${level} · ${word}`;
-  $('#levelInput').style.setProperty('--fill', `${level - 1}%`);
+  $('#levelInput').style.setProperty('--fill', `${((level - 1) / (MAX_LEVEL - 1)) * 100}%`);
+  $('#levelPicker').classList.toggle('master', level > 100);
+  $('#levelNote').hidden = level <= 100;
 }
 
 function bindUi() {

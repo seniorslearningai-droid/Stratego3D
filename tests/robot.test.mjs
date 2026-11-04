@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deploy, idx, move, newGame, viewFor } from '../js/game.js';
-import { chooseMove, robotArmy } from '../js/robot.js';
+import { chooseMove, peekAt, peekShare, robotArmy } from '../js/robot.js';
 
 // Small seeded random so the tests behave the same every run.
 const seeded = (seed) => () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
@@ -75,6 +75,43 @@ test('every difficulty level plays only legal moves', () => {
     for (let i = 0; i < 400 && s.phase === 'play'; i++) {
       const m = chooseMove(viewFor(s, s.turn), s.turn, rng, { level, seed: 3 });
       assert.ok(move(s, s.turn, m.from, m.to).ok);
+    }
+  }
+});
+
+test('levels above 100 peek at more and more hidden pieces', () => {
+  assert.equal(peekShare(100), 0);
+  assert.equal(peekShare(101), 0.5);
+  assert.equal(peekShare(120), 1);
+  const s = newGame();
+  deploy(s, 'red', robotArmy('red'));
+  assert.equal(peekAt(s.board, 'red', 100, 1).size, 0, 'level 100 sees nothing hidden');
+  assert.equal(peekAt(s.board, 'red', 120, 1).size, 40, 'level 120 sees everything');
+  const some = peekAt(s.board, 'red', 110, 1);
+  assert.ok(some.size > 10 && some.size < 40);
+  assert.deepEqual([...peekAt(s.board, 'red', 110, 1)], [...some], 'always the same pieces in a game');
+});
+
+test('a peeking robot goes straight for a flag it can see', () => {
+  // Blue's sergeant stands between two unmoved red pieces: one is the flag.
+  const s = board([[4, 1, 'blue', 'sergeant'], [3, 1, 'red', 'bomb'], [5, 1, 'red', 'flag'], [0, 0, 'blue', 'flag'], [9, 9, 'red', 'scout']]);
+  s.board[idx(3, 1)].moved = false;
+  s.board[idx(5, 1)].moved = false;
+  const peek = peekAt(s.board, 'red', 120, 9);
+  assert.deepEqual(chooseMove(viewFor(s, 'blue'), 'blue', seeded(4), { level: 120, peek }), { from: idx(4, 1), to: idx(5, 1) });
+});
+
+test('master levels play only legal moves', () => {
+  for (const level of [101, 120]) {
+    const rng = seeded(level);
+    const s = newGame();
+    deploy(s, 'red', robotArmy('red', rng));
+    deploy(s, 'blue', robotArmy('blue', rng));
+    for (let i = 0; i < 400 && s.phase === 'play'; i++) {
+      const side = s.turn;
+      const peek = peekAt(s.board, side === 'red' ? 'blue' : 'red', level, 2);
+      const m = chooseMove(viewFor(s, side), side, rng, { level, seed: 2, peek });
+      assert.ok(move(s, side, m.from, m.to).ok);
     }
   }
 });

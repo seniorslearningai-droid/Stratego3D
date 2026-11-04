@@ -237,6 +237,10 @@ input::placeholder { color: var(--faint); }
 .level-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
 .level-head label { font-size: 13px; font-weight: 600; color: var(--muted); }
 .level-value { font-weight: 700; color: var(--gold); font-variant-numeric: tabular-nums; }
+.level-picker.master { border-color: rgba(220, 74, 63, 0.55); background: rgba(220, 74, 63, 0.1); }
+.level-picker.master .level-value { color: #ff8d83; }
+.level-note { margin: 10px 0 2px; font-size: 13px; line-height: 1.45; color: #ffc2bb; }
+.level-note b { color: #ff8d83; }
 .level-ends { display: flex; justify-content: space-between; margin-top: 6px; font-size: 12px; color: var(--faint); }
 #levelInput {
   --fill: 49%;
@@ -248,12 +252,19 @@ input::placeholder { color: var(--faint); }
   appearance: none;
   cursor: pointer;
 }
+/* The last stretch of the track (101-120, the Master levels) is tinted red. */
 #levelInput::-webkit-slider-runnable-track {
   height: 8px;
   border-radius: 4px;
-  background: linear-gradient(90deg, var(--gold) var(--fill), rgba(255, 255, 255, 0.14) var(--fill));
+  background:
+    linear-gradient(90deg, var(--gold) var(--fill), transparent var(--fill)),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.14) 83.2%, rgba(220, 74, 63, 0.6) 83.2%);
 }
-#levelInput::-moz-range-track { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.14); }
+#levelInput::-moz-range-track {
+  height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.14) 83.2%, rgba(220, 74, 63, 0.6) 83.2%);
+}
 #levelInput::-moz-range-progress { height: 8px; border-radius: 4px; background: var(--gold); }
 #levelInput::-webkit-slider-thumb {
   -webkit-appearance: none;
